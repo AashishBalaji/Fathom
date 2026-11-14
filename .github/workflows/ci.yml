@@ -1,0 +1,32 @@
+name: CI
+
+# Downloads the real dataset once per run (cached between steps via
+# actions/cache keyed on the dataset id, so a re-run doesn't re-hit
+# the Hugging Face Hub every time), then runs the full real test
+# suite -- no mocked data, no synthetic tensors standing in for the
+# real satellite chips.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install -r requirements.txt flake8
+      - run: python3 -m flake8 fathom/ tests/
+      - name: Cache real dataset
+        uses: actions/cache@v4
+        with:
+          path: data/ships_in_satellite_imagery
+          key: ships-in-satellite-imagery-v1
+      - name: Download real dataset if not cached
+        run: |
+          if [ ! -d data/ships_in_satellite_imagery ]; then
+            PYTHONPATH=. python3 -m fathom.download_data
+          fi
+      - run: PYTHONPATH=. python3 -m pytest tests/ -v
